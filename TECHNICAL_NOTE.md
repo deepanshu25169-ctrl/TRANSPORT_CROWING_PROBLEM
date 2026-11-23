@@ -23,12 +23,13 @@ and only collapsed when route context leaves one candidate.
 Stop matching audit tiers: `exact` (raw name), `verified` (documented normalisation, curated
 alias support, unique target), `ambiguous` (multiple equally plausible targets or weak
 fuzzy hit), `unmatched`. “Verified” is deterministic rule-based verification, not per-row
-human review of 2.5M records. `transport/aliases.json` contains 13 manually checked
+human review of 2.5M records. `transport/aliases.json` contains 15 manually checked
 spelling/abbreviation aliases (e.g. `Narouji Nagar → Nauroji Nagar`, `Bhajan Pura →
-Bhajanpura`); ambiguous cases with several real targets (e.g. `Mahipal Pur`, `Peera Garhi`)
-are deliberately left ambiguous rather than guessed. Adding these aliases raised confident
-stop-pair coverage from 76.4% to 79.0%. Route matching preserves UP/DOWN and never guesses
-a new route.
+Bhajanpura`, `Neruhu Place → Nehru Place Terminal`); ambiguous cases with several real
+targets (e.g. `Mahipal Pur`, `Peera Garhi`) are deliberately left ambiguous rather than
+guessed. The first 13 aliases raised measured confident stop-pair coverage from 76.4% to
+79.0%; the two later typo aliases were added for query matching and do not change that
+measured build. Route matching preserves UP/DOWN and never guesses a new route.
 
 ## Historical ticket matching
 

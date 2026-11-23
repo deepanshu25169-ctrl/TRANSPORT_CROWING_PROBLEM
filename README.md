@@ -6,7 +6,8 @@ Crowdedness-aware Delhi bus journey planner — Phase 1. Python 3 standard libra
 
 All-pairs browser app: https://deepanshu25169-ctrl.github.io/TRANSPORT_CROWING_PROBLEM/
 It ships a compact GTFS + historical-model index (6,862 stops, 80,357 trips) and runs the
-search entirely in the browser, so any stop pair/date/time works without a server. Loads are
+search entirely in the browser, so any stop pair/date/time works without a server; it also
+handles name parts (e.g. `munirka`) and typo aliases (e.g. `neruhu place → Nehru Place Terminal`). Loads are
 model-based recorded-demand estimates; no live AVL or fleet-seat mapping. A compact
 precomputed 3-pair demo is at https://deepanshu25169-ctrl.github.io/TRANSPORT_CROWING_PROBLEM/demo.html.
 The full Python app below supports richer stop-by-stop and pooling output locally.

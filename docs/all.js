@@ -1,4 +1,4 @@
-let N = null, profMap = new Map(), pdMap = new Map(), byPattern = [], stopPatterns = [], stopNames = new Map(), aliasMap = new Map(), tripTimeCache = new Map();
+let N = null, profMap = new Map(), pdMap = new Map(), byPattern = [], stopPatterns = [], stopNames = new Map(), partNames = new Map(), normNames = [], aliasMap = new Map(), tripTimeCache = new Map();
 
 const $ = (id) => document.getElementById(id);
 const sec = (s) => { const p = s.split(':').map(Number); return p[0] * 3600 + p[1] * 60 + (p[2] || 0); };
@@ -21,7 +21,14 @@ function boot(data) {
     const k = norm(row[0]);
     if (!stopNames.has(k)) stopNames.set(k, []);
     stopNames.get(k).push(i);
+    for (const part of row[0].split('/')) {
+      const pk = norm(part);
+      if (pk.length < 4) continue;
+      if (!partNames.has(pk)) partNames.set(pk, []);
+      if (!partNames.get(pk).includes(i)) partNames.get(pk).push(i);
+    }
   });
+  normNames = Array.from(stopNames.keys());
   for (const [raw, target] of Object.entries(N.aliases)) aliasMap.set(norm(raw), norm(target));
   N.profiles.forEach(p => profMap.set(p[0] + '|' + p[1] + '|' + p[2], p));
   N.pattern_day.forEach(p => pdMap.set(p[0] + '|' + p[1], p));
@@ -34,14 +41,44 @@ function boot(data) {
   render();
 }
 
+function similarity(a, b) {
+  if (a === b) return 1;
+  if (!a.length || !b.length) return 0;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0]; prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const old = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = old;
+    }
+  }
+  return 1 - prev[b.length] / Math.max(a.length, b.length);
+}
+
 function resolve(raw) {
   const k = norm(raw);
   if (aliasMap.has(k)) {
     const ids = stopNames.get(aliasMap.get(k)) || [];
-    return { ids, label: ids.length ? 'verified alias' : 'unmatched' };
+    return { ids, label: ids.length ? 'verified alias' : 'unmatched', matched: ids.length ? N.stops[ids[0]][0] : '' };
   }
-  const ids = stopNames.get(k) || [];
-  return { ids, label: ids.length ? 'matched' : 'unmatched' };
+  let ids = stopNames.get(k) || [];
+  if (ids.length) return { ids, label: 'exact/verified', matched: N.stops[ids[0]][0] };
+  ids = partNames.get(k) || [];
+  if (ids.length) return { ids, label: 'verified name part', matched: N.stops[ids[0]][0] };
+  const tokens = k.split(' ').filter(t => t.length >= 3);
+  let best = null, bestScore = 0, second = 0;
+  for (const name of normNames) {
+    if (tokens.length && !tokens.some(t => name.split(' ').includes(t))) continue;
+    const score = similarity(k, name);
+    if (score > bestScore) { second = bestScore; bestScore = score; best = name; }
+    else if (score > second) second = score;
+  }
+  if (best && bestScore >= 0.86 && bestScore - second >= 0.03) {
+    ids = stopNames.get(best) || [];
+    return { ids, label: 'fuzzy typo', matched: N.stops[ids[0]][0] };
+  }
+  return { ids: [], label: 'unmatched', matched: '' };
 }
 
 function active(service, date) {
@@ -148,7 +185,8 @@ function render() {
   const distinct = new Set(rows.map(o => o.route + '|' + o.trip)).size;
   const head = [];
   head.push(`<p>Window ${fmt(target - win)}–${fmt(target + win)} inclusive; ${distinct} distinct departures. ${result.options.length} direct scheduled options on ${date}.</p>`);
-  head.push(`<p>Stop matching: board <strong>${result.board.label}</strong>, alight <strong>${result.alight.label}</strong>.</p>`);
+  const describe = (m) => `<strong>${m.label}</strong>${m.matched ? ' → ' + m.matched : ''}`;
+  head.push(`<p>Stop matching: board ${describe(result.board)}, alight ${describe(result.alight)}.</p>`);
   if (!inWin.length && later.length) head.push(`<p class="warn">No departure in the window; showing the next later bus for context only.</p>`);
   if (!result.board.ids.length || !result.alight.ids.length) head.push(`<p class="warn">No matching stop. Use a name from the suggestion list.</p>`);
   let html = head.join('');
