@@ -2,6 +2,12 @@
 
 Crowdedness-aware Delhi bus journey planner — Phase 1. Python 3 standard library only.
 
+## Live demo
+
+Static GitHub Pages demo: https://deepanshu25169-ctrl.github.io/TRANSPORT_CROWING_PROBLEM/
+It covers three stop pairs across all October 2026 dates with client-side time filtering.
+The full Python app below supports arbitrary stop pairs and runs locally.
+
 ## What it does
 
 Enter a boarding stop, destination, date and departure time. It shows direct buses,
