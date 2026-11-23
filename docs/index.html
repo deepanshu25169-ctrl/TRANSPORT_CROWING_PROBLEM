@@ -3,28 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Delhi bus crowding planner — live demo</title>
+<title>Delhi bus crowding planner — all pairs</title>
 <style>
-body{font:14px -apple-system,Helvetica,sans-serif;margin:24px;color:#222;max-width:1100px}
+body{font:14px -apple-system,Helvetica,sans-serif;margin:24px;color:#222;max-width:1200px}
 input,select,button{padding:6px;font-size:14px}table{border-collapse:collapse;width:100%;margin-top:16px}
-th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#f2f4f7}
-.note{color:#666;font-size:12px}.warn{color:#8a4b00}code{background:#f4f4f4;padding:1px 4px}
+th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f2f4f7}
+.note{color:#666;font-size:12px}.warn{color:#8a4b00}#status{color:#444;margin:8px 0}
 </style>
 </head>
 <body>
-<h2>Crowdedness-aware Delhi bus planner — static live demo</h2>
-<p class="note">October 2026 precomputed demo. The local app supports arbitrary stops and dates; this page serves a fixed set of pairs.</p>
+<h2>Crowdedness-aware Delhi bus planner — all pairs</h2>
+<p class="note" id="status">Loading GTFS + model index…</p>
 <form onsubmit="return false">
-<label>Pair <select id="pair"></select></label>
+<label>Boarding <input id="board" list="stoplist" value="Tara Apartment" size="34" required></label>
+&nbsp;<label>Destination <input id="alight" list="stoplist" value="Punj Sons / Govind Puri Metro Station" size="38" required></label><br><br>
+<datalist id="stoplist"></datalist>
 <label>Date <select id="date"></select></label>
-<label>Time <input id="time" value="08:40" size="7"></label>
-<label>Window ± <select id="win"><option>0</option><option selected>2</option><option>5</option><option>10</option></select> min</label>
-<label>Sort <select id="sort"><option value="arrival">earliest arrival</option><option value="crowding">least recorded load</option></select></label>
-<button id="go">Plan</button>
+&nbsp;<label>Time <input id="time" value="08:40" size="7"></label>
+&nbsp;<label>Window ± <select id="win"><option>0</option><option selected>2</option><option>5</option><option>10</option></select> min</label>
+&nbsp;<label>Sort <select id="sort"><option value="arrival">earliest arrival</option><option value="crowding">least recorded load</option></select></label>
+&nbsp;<button id="go">Plan</button>
 </form>
 <div id="out"></div>
-<p class="note">Recorded e-ticket demand only — not total passengers or seats. An unobserved bus is not an empty bus.</p>
-<p class="note">Source: <a href="https://github.com/deepanshu25169-ctrl/TRANSPORT_CROWING_PROBLEM">TRANSPORT_CROWING_PROBLEM</a></p>
-<script src="app.js"></script>
+<p class="note">Recorded e-ticket demand only — not total onboard passengers or physical seats. An unobserved bus is never assumed empty.</p>
+<script src="all.js"></script>
 </body>
 </html>

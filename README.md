@@ -4,9 +4,12 @@ Crowdedness-aware Delhi bus journey planner — Phase 1. Python 3 standard libra
 
 ## Live demo
 
-Static GitHub Pages demo: https://deepanshu25169-ctrl.github.io/TRANSPORT_CROWING_PROBLEM/
-It covers three stop pairs across all October 2026 dates with client-side time filtering.
-The full Python app below supports arbitrary stop pairs and runs locally.
+All-pairs browser app: https://deepanshu25169-ctrl.github.io/TRANSPORT_CROWING_PROBLEM/
+It ships a compact GTFS + historical-model index (6,862 stops, 80,357 trips) and runs the
+search entirely in the browser, so any stop pair/date/time works without a server. Loads are
+model-based recorded-demand estimates; no live AVL or fleet-seat mapping. A compact
+precomputed 3-pair demo is at https://deepanshu25169-ctrl.github.io/TRANSPORT_CROWING_PROBLEM/demo.html.
+The full Python app below supports richer stop-by-stop and pooling output locally.
 
 ## What it does
 
@@ -32,6 +35,9 @@ python3 scripts/build.py \
   --gtfs ~/Downloads/Transport/delhi_buses_static_gtfs_v1 \
   --csv  ~/Downloads/Transport/October-Delhi.csv \
   --db   output/transport.db
+
+# 1b. After changing the model/DB, refresh the live browser index:
+python3 scripts/export_allpairs_app.py
 
 # 2. Terminal query (three-option real demo)
 python3 scripts/query.py --board "Tara Apartment" \
