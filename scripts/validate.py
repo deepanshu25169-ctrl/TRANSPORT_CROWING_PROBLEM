@@ -93,7 +93,13 @@ def main() -> None:
         "test": {"start": TEST_START, "end": "2026-10-31"},
         "historical_window_days_selected": chosen,
         "window_selection": report,
-        "segment_error": {"model": error_stats(errors), "baseline_route_only": error_stats(base_errors)},
+        "segment_error": {
+            "model": error_stats(errors),
+            "baseline_route_only": error_stats(base_errors),
+            "mae_delta_vs_baseline": round(mean(errors) - mean(base_errors), 4) if errors else None,
+            "model_beats_baseline_mae": bool(errors and mean(errors) <= mean(base_errors)),
+            "model_beats_baseline_rmse": bool(errors and mean([e * e for e in errors]) <= mean([e * e for e in base_errors])),
+        },
         "error_by_period": {k: {"model": error_stats(v["model"]),
                                 "baseline": error_stats(v["baseline"])} for k, v in by_bucket.items()},
         "worst_cases": [

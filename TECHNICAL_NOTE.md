@@ -23,7 +23,12 @@ and only collapsed when route context leaves one candidate.
 Stop matching audit tiers: `exact` (raw name), `verified` (documented normalisation, curated
 alias support, unique target), `ambiguous` (multiple equally plausible targets or weak
 fuzzy hit), `unmatched`. “Verified” is deterministic rule-based verification, not per-row
-human review of 2.5M records. Route matching preserves UP/DOWN and never guesses a new route.
+human review of 2.5M records. `transport/aliases.json` contains 13 manually checked
+spelling/abbreviation aliases (e.g. `Narouji Nagar → Nauroji Nagar`, `Bhajan Pura →
+Bhajanpura`); ambiguous cases with several real targets (e.g. `Mahipal Pur`, `Peera Garhi`)
+are deliberately left ambiguous rather than guessed. Adding these aliases raised confident
+stop-pair coverage from 76.4% to 79.0%. Route matching preserves UP/DOWN and never guesses
+a new route.
 
 ## Historical ticket matching
 
@@ -50,6 +55,11 @@ minutes above the crowding threshold are reported per journey.
 
 ## Pooling
 
+Fine-bin medians are shrunk toward the route median with strength `k`, where `k` is chosen
+by the same earlier-week backtest alongside window length (`SHRINKAGE_CANDIDATES`). On this
+feed the backtest selected a 14-day window with `k=600`; this removes the fine-bin MAE
+penalty while retaining the RMSE reduction from pattern/time information.
+
 “100 passengers / 3 buses” is implemented as `pooled_average`: a transparent total over
 the same date, window, direction, stretch and eligible departures, divided by observed
 departures when available, or by scheduled departures with an explicit uncertainty flag
@@ -72,7 +82,9 @@ Capacity table in `transport/capacity.py`: JBM's own Delhi CITYLIFE release stat
 (URL recorded in code); a contemporary report says 36, so the mapping confidence is medium
 and configuration-dependent. TCQSM Exhibit 5-14 (2nd ed., bus 1.01–1.25 passengers/seat =
 comfortable standee band) supports `C = floor(1.25 S)` as a **planning benchmark**, not a
-Delhi legal limit. `is_ac` is not used as a capacity proxy. Because no fleet register links
+Delhi legal limit. `is_ac` is not used as a capacity proxy. An optional JSON map
+(`transport/capacity_map.example.json`) accepts `{"<ticket vehicle number>": "<exact CAPACITY_TABLE vehicle_model>"}`;
+only a real, independently sourced register should populate it. Because no fleet register links
 ticket vehicle numbers to models and no independent coverage q exists, the app runs in
 `recorded_only` mode: Lower / Typical / Higher recorded crowding against a documented
 October train-period reference, with sample support. Seat/standing predictions are

@@ -308,7 +308,7 @@ def save_network(net: Network, conn) -> None:
     conn.commit()
 
 
-def load_network(conn) -> Network:
+def load_network(conn, aliases_path: Path | None = None) -> Network:
     net = Network()
     for idx, sid, name, lat, lon in conn.execute("SELECT idx, stop_id, stop_name, lat, lon FROM stops"):
         net.stop_idx[sid] = idx
@@ -326,7 +326,7 @@ def load_network(conn) -> Network:
             net.trips_by_stop.setdefault(s, set()).add(tid)
     for sid, flags, start, end in conn.execute("SELECT service_id, flags, start_date, end_date FROM service_calendar"):
         net.calendar[sid] = {"flags": json.loads(flags), "start": start, "end": end}
-    net.matcher = NameMatcher({s.stop_id: s.name for s in net.stops}, net.routes.keys())
+    net.matcher = NameMatcher({s.stop_id: s.name for s in net.stops}, net.routes.keys(), aliases_path)
     net.feed_files = {"stops": len(net.stops), "routes": len(net.routes), "trips": len(net.trips),
                       "patterns": len(net.patterns)}
     return net

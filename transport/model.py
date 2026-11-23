@@ -14,6 +14,7 @@ from .gtfs import JourneyOption, Network
 
 MIN_SUPPORT = 3
 CANDIDATE_WINDOWS = (3, 7, 14, 21)
+SHRINKAGE_CANDIDATES = (0, 5, 15, 40, 100, 250, 600, 1500)
 EVAL_DAYS = 7
 SELECTION_SAMPLE_STEP = 10
 
@@ -80,6 +81,7 @@ class HistoricalModel:
         self.route_by_pattern: dict[str, str] = {}
         self.agg: Aggregated | None = None
         self.window_days: int | None = None
+        self.shrinkage_k: float = 0.0
         self.window_report: dict = {}
         self._load_observations()
 
@@ -126,18 +128,28 @@ class HistoricalModel:
                 route_support[route] = len(vals)
         return Aggregated(profiles, dict(by_pattern_day), route_medians, route_support)
 
+    def _shrink(self, value: float, n: int, agg: Aggregated, route: str) -> float:
+        base = agg.route_medians.get(route)
+        if base is None or not self.shrinkage_k or n <= 0:
+            return value
+        k = float(self.shrinkage_k)
+        return (n * value + k * base) / (n + k)
+
     def _predict_from(self, agg: Aggregated, key: tuple, tbin: int, route: str) -> tuple[float, Profile]:
         p = agg.profiles.get(key)
         if p and p.n_runs >= MIN_SUPPORT:
-            return p.median_load, p
+            return self._shrink(p.median_load, p.n_runs, agg, route), p
         wide = agg.profiles.get((key[0], key[1], tbin // 2))
         if wide and wide.n_runs >= MIN_SUPPORT:
-            return wide.median_load, Profile(wide.key, wide.n_runs, wide.n_days, wide.median_load,
-                                             wide.p75_load, wide.p90_load, "wider_time_bin")
+            return self._shrink(wide.median_load, wide.n_runs, agg, route), Profile(
+                wide.key, wide.n_runs, wide.n_days, wide.median_load,
+                wide.p75_load, wide.p90_load, "wider_time_bin")
         vals = agg.by_pattern_day.get((key[0], key[1]))
         if vals:
-            return median(vals), Profile(key, len(vals), 0, median(vals), percentile(vals, 75),
-                                         percentile(vals, 90), "pattern_day_no_time")
+            value = median(vals)
+            return self._shrink(value, len(vals), agg, route), Profile(
+                key, len(vals), 0, value, percentile(vals, 75),
+                percentile(vals, 90), "pattern_day_no_time")
         if route in agg.route_medians:
             val = agg.route_medians[route]
             return val, Profile(key, agg.route_support[route], 0, val, val, val, "route_no_time")
@@ -152,27 +164,46 @@ class HistoricalModel:
             if cutoff in dates:
                 cutoffs.append(cutoff)
         sampled_obs = [(k, d, vs) for k, by_date in self.obs.items() for d, vs in by_date.items()][::SELECTION_SAMPLE_STEP]
-        report = {"cutoffs": cutoffs, "sample_step": SELECTION_SAMPLE_STEP, "candidates": {}}
+        report = {"cutoffs": cutoffs, "sample_step": SELECTION_SAMPLE_STEP,
+                  "shrinkage_candidates": list(SHRINKAGE_CANDIDATES), "candidates": {}}
+        best = None
+        original_k = self.shrinkage_k
         for W in CANDIDATE_WINDOWS:
-            errors = []
+            eval_sets = []
             for cutoff in cutoffs:
                 start = (dt.date.fromisoformat(cutoff) - dt.timedelta(days=W - 1)).isoformat()
                 agg = self._aggregate(start, cutoff)
                 eval_end = (dt.date.fromisoformat(cutoff) + dt.timedelta(days=EVAL_DAYS)).isoformat()
-                abs_errors = []
-                for key, date, vals in sampled_obs:
-                    if not (cutoff < date <= eval_end):
-                        continue
-                    pred, _ = self._predict_from(agg, key, key[2], self.route_by_pattern.get(key[0], ""))
-                    if math.isnan(pred):
-                        continue
-                    abs_errors.extend(abs(pred - v) for v in vals)
-                if abs_errors:
-                    errors.append({"cutoff": cutoff, "mae": mean(abs_errors), "n": len(abs_errors)})
-            score = mean(e["mae"] for e in errors) if errors else float("inf")
-            report["candidates"][W] = {"mae": score, "cutoffs": errors}
-        best = min(report["candidates"], key=lambda w: report["candidates"][w]["mae"])
-        self.window_days = best
+                eval_sets.append((cutoff, agg, [(key, vals) for key, date, vals in sampled_obs
+                                                if cutoff < date <= eval_end]))
+            by_k = {}
+            for k in SHRINKAGE_CANDIDATES:
+                self.shrinkage_k = k
+                errors = []
+                for cutoff, agg, eval_obs in eval_sets:
+                    abs_errors = []
+                    for key, vals in eval_obs:
+                        pred, _ = self._predict_from(agg, key, key[2],
+                                                     self.route_by_pattern.get(key[0], ""))
+                        if math.isnan(pred):
+                            continue
+                        abs_errors.extend(abs(pred - v) for v in vals)
+                    if abs_errors:
+                        errors.append({"cutoff": cutoff, "mae": mean(abs_errors), "n": len(abs_errors)})
+                by_k[k] = {"mae": mean(e["mae"] for e in errors) if errors else float("inf"),
+                           "cutoffs": errors}
+            report["candidates"][W] = {
+                "mae": min(v["mae"] for v in by_k.values()),
+                "by_shrinkage": {str(k): v for k, v in by_k.items()},
+            }
+            for k, v in by_k.items():
+                score = (v["mae"], W, k)
+                if best is None or score < best[0]:
+                    best = (score, W, k)
+        self.shrinkage_k = best[2] if best else original_k
+        self.window_days = best[1] if best else min(CANDIDATE_WINDOWS)
+        report["selected"] = self.window_days
+        report["selected_shrinkage"] = self.shrinkage_k
         self.window_report = report
         return report
 

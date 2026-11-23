@@ -15,14 +15,18 @@ from .store import get_meta
 
 
 class Planner:
-    def __init__(self, db: Path, capacity_map: Path | None = None):
+    def __init__(self, db: Path, capacity_map: Path | None = None,
+                 aliases_path: Path | None = None):
         self.conn = sqlite3.connect(db, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        self.net = load_network(self.conn)
+        if aliases_path is None:
+            aliases_path = Path(__file__).resolve().parents[1] / "transport" / "aliases.json"
+        self.net = load_network(self.conn, aliases_path)
         self.model = HistoricalModel(self.conn, self.net)
         report = get_meta(self.conn, "window_report")
         if report and report.get("selected"):
             self.model.window_days = int(report["selected"])
+            self.model.shrinkage_k = float(report.get("selected_shrinkage", 0))
             self.model.window_report = report
         else:
             self.model.select_window()

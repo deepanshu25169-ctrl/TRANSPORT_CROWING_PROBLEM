@@ -15,7 +15,8 @@ sys.path.insert(0, str(ROOT))
 
 from transport.planner import Planner  # noqa: E402
 
-PLANNER = Planner(ROOT / "output" / "transport.db")
+CAPACITY_MAP = Path(sys.argv[2]) if len(sys.argv) > 2 else None
+PLANNER = Planner(ROOT / "output" / "transport.db", CAPACITY_MAP)
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Delhi bus crowding planner</title>
 <style>

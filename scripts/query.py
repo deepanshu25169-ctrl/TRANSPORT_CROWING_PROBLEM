@@ -44,11 +44,12 @@ def main() -> None:
     ap.add_argument("--window", type=int, default=2)
     ap.add_argument("--sort", choices=("arrival", "crowding"), default="arrival")
     ap.add_argument("--db", type=Path, default=ROOT / "output" / "transport.db")
+    ap.add_argument("--capacity-map", type=Path, help="optional vehicle-number -> vehicle-model JSON")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--no-earlier", action="store_true")
     args = ap.parse_args()
 
-    planner = Planner(args.db)
+    planner = Planner(args.db, args.capacity_map)
     result = planner.plan(args.board, args.alight, args.date, args.time_str,
                           args.window, args.sort, not args.no_earlier)
     if args.json:

@@ -45,6 +45,14 @@ python3 scripts/query.py --board "Tara Apartment" \
 python3 scripts/serve.py
 # open http://localhost:8765
 
+# Optional: only if you have a real fleet register, copy
+# transport/capacity_map.example.json, replace the placeholder key with the real
+# ticket vehicle number and the model with a supported CAPACITY_TABLE entry, then:
+python3 scripts/query.py --board "Tara Apartment" \
+  --to "Punj Sons / Govind Puri Metro Station" --date 2026-10-23 --time 08:40 \
+  --capacity-map transport/capacity_map.example.json
+python3 scripts/serve.py 8765 transport/capacity_map.example.json
+
 # 6. Validation (Oct 1-21 train, Oct 22-31 test)
 python3 scripts/validate.py
 
@@ -66,6 +74,8 @@ No `pip install` is needed. Verified with Python 3.14.2 on macOS.
   `D-042DOWN 08:38`, `463DOWN 08:38`, `469DOWN 08:40`; next later option is `425CLDOWN 08:43:36`.
 - GTFS service calendar `2025-01-01 … 2040-01-01`, all seven days, matches October 2026;
   no `calendar_dates.txt` exceptions are supplied.
+- Curated aliases in `transport/aliases.json` are used by both the build and the query/web
+  app; they raised confident stop-pair coverage from 76.4% to 79.0% on this feed.
 
 ## Generated files (not in Git)
 

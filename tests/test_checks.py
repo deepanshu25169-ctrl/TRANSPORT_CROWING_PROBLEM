@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import math
 import sqlite3
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from transport.capacity import capacity_for, classify_credible  # noqa: E402
 from transport.common import hms_to_sec  # noqa: E402
 from transport.gtfs import load_network  # noqa: E402
+from transport.normalize import route_direction  # noqa: E402
 from transport.loads import in_window, inclusive_window, segment_loads  # noqa: E402
 from transport.model import pooled_average  # noqa: E402
 from transport.planner import Planner  # noqa: E402
@@ -116,6 +119,44 @@ class EndToEnd(unittest.TestCase):
             self.assertTrue(math.isfinite(opt["expected_recorded_load"]))
         self.assertIsNotNone(result["later_comparison"])
         self.assertEqual(result["capacity_mode"], "recorded_only")
+
+
+class AliasAndCompatChecks(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.conn = sqlite3.connect(DB)
+        cls.aliases = json.loads((ROOT / "transport" / "aliases.json").read_text(encoding="utf-8"))
+        cls.net = load_network(cls.conn, ROOT / "transport" / "aliases.json")
+
+    def test_curated_aliases_resolve_to_real_stops(self):
+        available = {row[0] for row in self.conn.execute("SELECT DISTINCT stop_name FROM stops")}
+        for raw, target in self.aliases.items():
+            self.assertIn(target, available, raw)
+            match = self.net.matcher.match_stop(raw)
+            self.assertEqual(match.label, "verified", raw)
+            self.assertTrue(match.ids, raw)
+
+    def test_no_alias_backward_compatibility(self):
+        plain = load_network(self.conn)
+        self.assertTrue(plain.matcher.match_stop("Tara Apartment").ids)
+        self.assertEqual(self.net.matcher.match_stop("Tara Apartment").ids,
+                         plain.matcher.match_stop("Tara Apartment").ids)
+
+    def test_direction_and_clock_back_compat(self):
+        self.assertEqual(hms_to_sec("08:40"), hms_to_sec("08:40:00"))
+        self.assertTrue(route_direction("717BDOWN").endswith(":DOWN"))
+        self.assertTrue(route_direction("543UP").endswith(":UP"))
+
+    def test_optional_capacity_map_enables_credible_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "map.json"
+            path.write_text(json.dumps({"DL51EV9844":
+                "JBM CITYLIFE, Delhi low-floor AC cluster configuration (2020)"}), encoding="utf-8")
+            cap = capacity_for("DL51EV9844", 1, path)
+            self.assertEqual(cap.mode, "credible")
+            self.assertEqual(cap.seats, 35)
+            self.assertEqual(classify_credible(36, cap), "standing_range")
+            self.assertEqual(capacity_for("UNKNOWN", 1, path).mode, "recorded_only")
 
 
 if __name__ == "__main__":
