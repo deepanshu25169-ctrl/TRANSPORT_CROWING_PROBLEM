@@ -88,7 +88,9 @@ Delhi legal limit. `is_ac` is not used as a capacity proxy. An optional JSON map
 only a real, independently sourced register should populate it. Because no fleet register links
 ticket vehicle numbers to models and no independent coverage q exists, the app runs in
 `recorded_only` mode: Lower / Typical / Higher recorded crowding against a documented
-October train-period reference, with sample support. Seat/standing predictions are
+October train-period reference (p50 / p75 / p90 of recorded segment loads; on this feed
+1 / 2 / 3 e-ticket passengers, so Lower ≤1, Typical ≤2, Higher >2), with sample support.
+Seat/standing predictions are
 implemented but deliberately disabled. Ranking across routes compares recorded demand on
 a common basis only; it does not establish physical comfort.
 

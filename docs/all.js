@@ -187,6 +187,8 @@ function render() {
   head.push(`<p>Window ${fmt(target - win)}–${fmt(target + win)} inclusive; ${distinct} distinct departures. ${result.options.length} direct scheduled options on ${date}.</p>`);
   const describe = (m) => `<strong>${m.label}</strong>${m.matched ? ' → ' + m.matched : ''}`;
   head.push(`<p>Stop matching: board ${describe(result.board)}, alight ${describe(result.alight)}.</p>`);
+  const r = N.meta.reference;
+  head.push(`<p class="note">Recorded-load bands (Oct 1–21): Lower ≤ ${r.lower}, Typical ≤ ${r.typical}, Higher > ${r.typical} e-ticket passengers per stretch; p90 ${r.higher} sets “crowded minutes”. These are not seats or total passengers.</p>`);
   if (!inWin.length && later.length) head.push(`<p class="warn">No departure in the window; showing the next later bus for context only.</p>`);
   if (!result.board.ids.length || !result.alight.ids.length) head.push(`<p class="warn">No matching stop. Use a name from the suggestion list.</p>`);
   let html = head.join('');

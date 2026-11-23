@@ -228,9 +228,9 @@ class HistoricalModel:
 def build_reference(model: HistoricalModel, train_end: str = "2026-10-21") -> dict:
     values = [v for by_date in model.route_obs.values() for date, vals in by_date.items()
               if date <= train_end for v in vals]
-    return {"n": len(values), "lower": percentile(values, 33) if values else None,
-            "typical": percentile(values, 50) if values else None,
-            "higher": percentile(values, 67) if values else None}
+    return {"n": len(values), "lower": percentile(values, 50) if values else None,
+            "typical": percentile(values, 75) if values else None,
+            "higher": percentile(values, 90) if values else None}
 
 
 def analyse_journey(net: Network, option: JourneyOption, model: HistoricalModel, capacity: Capacity,

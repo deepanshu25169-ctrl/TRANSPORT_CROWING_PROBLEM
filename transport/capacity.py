@@ -98,18 +98,18 @@ def recorded_reference(train_loads: list[float]) -> dict:
         return {"n": 0, "lower": None, "typical": None, "higher": None}
     return {
         "n": len(train_loads),
-        "lower": percentile(train_loads, 33),
-        "typical": percentile(train_loads, 50),
-        "higher": percentile(train_loads, 67),
+        "lower": percentile(train_loads, 50),
+        "typical": percentile(train_loads, 75),
+        "higher": percentile(train_loads, 90),
     }
 
 
 def classify_recorded(load: float, reference: dict) -> tuple[str, float]:
     if not reference.get("n") or reference.get("typical") is None:
         return "Limited data", float("nan")
-    low, mid, high = reference["lower"], reference["typical"], reference["higher"]
-    if load < low:
+    low, mid = reference["lower"], reference["typical"]
+    if load <= low:
         return "Lower", safe_div(load, mid)
-    if load <= high:
+    if load <= mid:
         return "Typical", safe_div(load, mid)
     return "Higher", safe_div(load, mid)
