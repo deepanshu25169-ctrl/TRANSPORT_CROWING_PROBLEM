@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from transport.capacity import capacity_for  # noqa: E402
 from transport.common import clock  # noqa: E402
-from transport.model import analyse_journey, run_loads_for_trip  # noqa: E402
+from transport.model import analyse_journey  # noqa: E402
 from transport.planner import Planner  # noqa: E402
 
 PAIRS = [
@@ -25,13 +25,18 @@ START = dt.date(2026, 10, 1)
 DAYS = 31
 
 
+def rounded(value):
+    return round(value, 1) if value is not None else None
+
+
 def main() -> None:
     planner = Planner(ROOT / "output" / "transport.db")
     capacity = capacity_for(None, 0, None)
     payload = {
         "generated_for": "October 2026 static GitHub Pages demo",
         "train_end": "2026-10-21",
-        "note": "Compact precomputed results; full stop-by-stop and arbitrary stop pairs are in the local app.",
+        "reference": planner.reference,
+        "note": "Compact precomputed results; full stop-by-stop and arbitrary stop pairs are in the all-pairs app.",
         "pairs": [],
     }
     for pair_id, board, alight in PAIRS:
@@ -41,9 +46,8 @@ def main() -> None:
             options, info = planner.net.options(board, alight, date_iso=date)
             rows = []
             for option in options:
-                observed = run_loads_for_trip(planner.conn, option.trip_id, date)
                 result = analyse_journey(planner.net, option, planner.model, capacity,
-                                         planner.reference, date, observed)
+                                         planner.reference, date, None)
                 runs = planner.conn.execute(
                     "SELECT count(*) FROM run_info WHERE trip_id=? AND date=?",
                     (option.trip_id, date),
@@ -55,12 +59,16 @@ def main() -> None:
                     "arr": clock(option.arr_sec),
                     "dep_sec": option.dep_sec,
                     "arr_sec": option.arr_sec,
-                    "load": round(result.avg_load, 1),
-                    "peak": round(result.peak_load, 1),
-                    "crowded_min": round(result.crowded_minutes, 1),
+                    "board_platform": planner.net.stop_id(option.board_stop_idx),
+                    "alight_platform": planner.net.stop_id(option.alight_stop_idx),
+                    "load": rounded(result.avg_load),
+                    "peak": rounded(result.peak_load),
+                    "peak_segments": result.peak_segments,
+                    "crowded_min": rounded(result.crowded_minutes),
                     "confidence": result.confidence,
-                    "evidence": "observed" if runs and any(observed.values()) else
-                                "observed_empty_on_stretch" if runs else "unobserved",
+                    "support": result.support,
+                    "evidence": result.evidence,
+                    "observed_runs": runs,
                     "crowding": [e.recorded_class for e in result.estimates],
                 })
             dates[date] = {"stop_matching": info, "options": rows}

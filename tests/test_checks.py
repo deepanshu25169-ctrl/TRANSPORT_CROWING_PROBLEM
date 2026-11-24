@@ -18,7 +18,7 @@ from transport.common import hms_to_sec  # noqa: E402
 from transport.gtfs import load_network  # noqa: E402
 from transport.normalize import route_direction  # noqa: E402
 from transport.loads import in_window, inclusive_window, segment_loads  # noqa: E402
-from transport.model import pooled_average  # noqa: E402
+from transport.model import Aggregated, HistoricalModel, Profile, pooled_average  # noqa: E402
 from transport.planner import Planner  # noqa: E402
 
 DB = ROOT / "output" / "transport.db"
@@ -157,6 +157,109 @@ class AliasAndCompatChecks(unittest.TestCase):
             self.assertEqual(cap.seats, 35)
             self.assertEqual(classify_credible(36, cap), "standing_range")
             self.assertEqual(capacity_for("UNKNOWN", 1, path).mode, "recorded_only")
+
+
+def fake_model(profiles=None, day_profiles=None, route_medians=None, route_support=None):
+    model = HistoricalModel.__new__(HistoricalModel)
+    model.bin_minutes = 30
+    model.shrinkage_k = 0.0
+    model.agg = Aggregated({}, {}, route_medians or {}, route_support or {},
+                           profiles or {}, {}, day_profiles or {}, {}, [])
+    return model
+
+
+class StretchModelChecks(unittest.TestCase):
+    def test_same_hour_two_positions_are_different(self):
+        profiles = {
+            ("P", "weekday", 20, 2): Profile(("P", "weekday", 20, 2), 12, 6, 10, 12, 14),
+            ("P", "weekday", 20, 3): Profile(("P", "weekday", 20, 3), 12, 6, 35, 38, 42),
+        }
+        model = fake_model(profiles)
+        at_two = model.predict_stretch("P", "weekday", 2, hms_to_sec("10:05"), "R")
+        at_three = model.predict_stretch("P", "weekday", 3, hms_to_sec("10:05"), "R")
+        self.assertEqual(at_two.load, 10)
+        self.assertEqual(at_three.load, 35)
+        self.assertEqual(at_two.method, "exact_stretch")
+        self.assertEqual(at_three.method, "exact_stretch")
+
+    def test_midnight_fallback_does_not_use_wrong_clock_half_hour(self):
+        profiles = {
+            ("P", "weekday", 47, 5): Profile(("P", "weekday", 47, 5), 8, 4, 7, 8, 9),
+            ("P", "weekday", 18, 5): Profile(("P", "weekday", 18, 5), 20, 10, 99, 99, 99),
+        }
+        model = fake_model(profiles)
+        prediction = model.predict_stretch("P", "weekday", 5, hms_to_sec("00:10"), "R")
+        self.assertEqual(prediction.load, 7)
+        self.assertEqual(prediction.method, "nearby_stretch")
+
+    def test_weekday_weekend_midnight_boundary(self):
+        profiles = {
+            ("P", "weekend", 47, 5): Profile(("P", "weekend", 47, 5), 8, 4, 4, 5, 6),
+        }
+        model = fake_model(profiles)
+        prediction = model.predict_stretch("P", "weekday", 5, hms_to_sec("00:10"), "R")
+        self.assertEqual(prediction.load, 4)
+        self.assertEqual(prediction.method, "adjacent_day_type_boundary")
+
+    def test_zero_load_and_no_evidence_are_different(self):
+        day_profiles = {
+            ("P", "weekday", 5): Profile(("P", "weekday", 5), 8, 4, 0, 0, 0),
+        }
+        model = fake_model(day_profiles=day_profiles, route_medians={"R": 6},
+                           route_support={"R": 100})
+        zero = model.predict_stretch("P", "weekday", 5, hms_to_sec("10:00"), "R")
+        missing = model.predict_stretch("P", "weekday", 6, hms_to_sec("10:00"), "R")
+        self.assertEqual(zero.load, 0)
+        self.assertTrue(zero.evidence_based)
+        self.assertEqual(missing.load, 6)
+        self.assertFalse(missing.evidence_based)
+        self.assertEqual(missing.status, "Limited data")
+
+
+class ScenarioChecks(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.planner = Planner(DB)
+
+    def test_busy_corridor_reports_busiest_stretch(self):
+        result = self.planner.plan("Badarpur Border (T)", "Kapashera Border",
+                                   "2026-10-30", "06:35", 2)
+        self.assertTrue(result["options"])
+        option = result["options"][0]
+        self.assertIsNotNone(option["expected_recorded_load"])
+        self.assertIsNotNone(option["busiest_load"])
+        self.assertGreaterEqual(option["busiest_load"], option["expected_recorded_load"])
+        self.assertTrue(option["busiest_stretches"])
+
+    def test_sparse_route_is_not_recommended_as_low_crowding(self):
+        result = self.planner.plan("Jama Masjid", "Super Bazar", "2026-10-21", "00:16", 2)
+        self.assertTrue(result["options"])
+        option = result["options"][0]
+        self.assertEqual(option["confidence"], "No data")
+        self.assertIsNone(option["expected_recorded_load"])
+        self.assertTrue(any(stop["status"] == "Limited data" and not stop["evidence_based"]
+                            for stop in option["stops"]))
+
+    def test_all_nearby_departures_left(self):
+        result = self.planner.plan("Tara Apartment", "Punj Sons / Govind Puri Metro Station",
+                                   "2026-10-23", "24:30", 0)
+        self.assertTrue(result["all_nearby_departures_left"])
+        self.assertEqual(len(result["options"]), 1)
+        self.assertFalse(result["options"][0]["boarding_recommended"])
+
+    def test_platform_ids_and_history_label(self):
+        result = self.planner.plan("Tara Apartment", "Punj Sons / Govind Puri Metro Station",
+                                   "2026-11-02", "08:40", 2)
+        self.assertTrue(result["options"])
+        option = result["options"][0]
+        self.assertTrue(option["board_platform"])
+        self.assertTrue(option["alight_platform"])
+        self.assertEqual(result["query"]["data_vintage"], "Based on October 2026 ticket history")
+
+    def test_misspelled_stop_still_matches(self):
+        match = self.planner.net.matcher.match_stop("Tara Apatment")
+        self.assertTrue(match.ids)
+        self.assertEqual(match.label, "verified")
 
 
 if __name__ == "__main__":

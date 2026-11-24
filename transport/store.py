@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS ticket_events (
   route_name TEXT, pattern_id TEXT, trip_id TEXT, run_key TEXT,
   board_idx INTEGER, alight_idx INTEGER, board_pos INTEGER, alight_pos INTEGER,
   ticket_sec INTEGER, match_start TEXT, match_end TEXT, match_route TEXT,
-  is_ac INTEGER, status TEXT NOT NULL
+  is_ac INTEGER, status TEXT NOT NULL, assignment_status TEXT,
+  assignment_candidates INTEGER, scheduled_dep INTEGER, reconstruction_rule TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_ticket_date ON ticket_events(date);
 CREATE INDEX IF NOT EXISTS ix_ticket_run ON ticket_events(run_key);
@@ -49,7 +50,10 @@ CREATE INDEX IF NOT EXISTS ix_ticket_route ON ticket_events(route_name);
 CREATE TABLE IF NOT EXISTS run_info (
   run_key TEXT PRIMARY KEY, date TEXT NOT NULL, vehicle TEXT, route_name TEXT,
   pattern_id TEXT, trip_id TEXT, n_tickets INTEGER, total_pax INTEGER,
-  first_ticket_sec INTEGER, split_reason TEXT
+  first_ticket_sec INTEGER, last_ticket_sec INTEGER, first_board_pos INTEGER,
+  last_alight_pos INTEGER, direction TEXT, n_patterns INTEGER, n_trips INTEGER,
+  n_days INTEGER, assignment_ambiguous INTEGER, reconstruction_rule TEXT,
+  split_reason TEXT, evidence TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_run_date ON run_info(date);
 CREATE INDEX IF NOT EXISTS ix_run_pattern ON run_info(pattern_id);
@@ -64,8 +68,9 @@ CREATE TABLE IF NOT EXISTS model_params (
 );
 CREATE TABLE IF NOT EXISTS historical_profiles (
   profile_key TEXT PRIMARY KEY, route_name TEXT, pattern_id TEXT,
-  direction TEXT, day_type TEXT, time_bin INTEGER, n_runs INTEGER,
-  n_days INTEGER, median_load REAL, p75_load REAL, p90_load REAL
+  direction TEXT, day_type TEXT, time_bin INTEGER, position INTEGER,
+  n_runs INTEGER, n_days INTEGER, median_load REAL, p75_load REAL,
+  p90_load REAL, evidence_window_min INTEGER
 );
 """
 

@@ -14,6 +14,12 @@ sys.path.insert(0, str(ROOT))
 from transport.planner import Planner  # noqa: E402
 
 
+def cell(value, digits: int | None = None) -> str:
+    if value is None:
+        return "No data"
+    return round(value, digits) if digits is not None else value
+
+
 def table(result: dict) -> str:
     lines = [f"Window {result['query']['window_seconds'][0]}–{result['query']['window_seconds'][1]} "
              f"(inclusive); {result['distinct_departures_in_window']} distinct departures", ""]
@@ -22,8 +28,8 @@ def table(result: dict) -> str:
     lines.append("-" * len(header))
     for o in result["options"]:
         lines.append(f"{o['route'][:14]:<14} {o['departure_at_board']:>5} {o['arrival_at_destination']:>5} "
-                     f"{o['wait_minutes']:>6} {o['ride_minutes']:>6} {o['expected_recorded_load']:>6} "
-                     f"{o['busiest_load']:>6} {o['minutes_crowded']:>10} {o['confidence']:<13} {o['evidence']:<24}")
+                     f"{cell(o['wait_minutes']):>6} {cell(o['ride_minutes']):>6} {cell(o['expected_recorded_load']):>8} "
+                     f"{cell(o['busiest_load']):>8} {cell(o['minutes_crowded']):>10} {o['confidence']:<13} {o['evidence']:<24}")
     for o in result["options"]:
         if not o["stops"]:
             continue

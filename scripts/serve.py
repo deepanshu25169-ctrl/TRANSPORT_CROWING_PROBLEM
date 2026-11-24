@@ -39,33 +39,61 @@ details{{margin:4px 0}} .note{{color:#666;font-size:12px}} .warn{{color:#8a4b00}
 </body></html>"""
 
 
+def cell(value):
+    return "No data" if value is None or value != value else str(value)
+
+
+def clock(seconds: int) -> str:
+    seconds = int(seconds) % 86400
+    return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
+
+
 def render(result: dict) -> str:
     if "error" in result:
         return f"<p class='warn'>{html.escape(result['error'])}</p>"
     rows = []
     for o in result["options"]:
         stops = "".join(
-            f"<li>{html.escape(s['from'])} &rarr; {html.escape(s['to'])}: {s['minutes']} min, "
-            f"load {s['load']} (p75 {s['p75']}, n={s['support']}), {s['recorded_class']}</li>"
+            f"<li>{html.escape(s['from'])} ({html.escape(cell(s['platform_from']))}) &rarr; "
+            f"{html.escape(s['to'])} ({html.escape(cell(s['platform_to']))}): "
+            f"{s['minutes']} min, load {cell(s['load'])} (p75 {cell(s['p75'])}, n={s['support']}, "
+            f"{s['n_days']}d, {html.escape(s['method'])}), {cell(s['recorded_class'])}</li>"
             for s in o["stops"])
+        peaks = o["busiest_stretches"] or []
+        peak_text = "; ".join(
+            f"{p['from']} ({cell(p['platform_from'])}) &rarr; {p['to']} ({cell(p['platform_to'])}): {cell(p['load'])}"
+            for p in peaks) or "No data"
         rows.append(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>"
-            "<td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"
-            "<tr><td colspan='11'><details><summary>Stop-by-stop</summary><ul>{}</ul></details></td></tr>".format(
+            "<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"
+            "<tr><td colspan='12'><details><summary>Stop-by-stop</summary><ul>{}</ul></details></td></tr>".format(
                 html.escape(o["route"]), html.escape(o["direction"]), o["departure_at_board"],
-                o["arrival_at_destination"], o["wait_minutes"], o["ride_minutes"],
-                o["expected_recorded_load"], o["busiest_stretch"], o["minutes_crowded"],
-                o["confidence"], o["evidence"], stops))
+                o["arrival_at_destination"],
+                f"{cell(o['board_platform'])} &rarr; {cell(o['alight_platform'])}",
+                o["wait_minutes"], o["ride_minutes"], cell(o["expected_recorded_load"]),
+                peak_text, cell(o["minutes_crowded"]), o["confidence"], o["evidence"], stops))
+    start, end = result["query"]["window_seconds"]
     head = ("<p>Window {}-{} inclusive; {} distinct scheduled departures. {} direct options today. "
-            "Stop matching: board {}, alight {}. Pool: {} recorded passengers / {} {} departures = {} per departure.</p>"
-            .format(*result["query"]["window_seconds"], result["distinct_departures_in_window"],
-                    result["total_scheduled_direct_options_today"],
-                    result["stop_matching"].get("board_match"), result["stop_matching"].get("alight_match"),
-                    result["pooled"]["total_recorded_passengers"], result["pooled"]["eligible_departures"],
-                    result["pooled"]["denominator_source"],
-                    round(result["pooled"]["average_recorded_per_departure"] or 0, 1)))
-    table = ("<table><tr><th>route</th><th>direction</th><th>dep</th><th>arr</th><th>wait</th><th>ride</th>"
-             "<th>load</th><th>busiest stretch</th><th>crowded min</th><th>confidence</th><th>evidence</th></tr>"
+            "Stop matching: board {}, alight {}. Pool: {} recorded passengers / {} {} departures = {} per departure. "
+            "{}</p>".format(
+                clock(start), clock(end), result["distinct_departures_in_window"],
+                result["total_scheduled_direct_options_today"],
+                result["stop_matching"].get("board_match"), result["stop_matching"].get("alight_match"),
+                result["pooled"]["total_recorded_passengers"], result["pooled"]["eligible_departures"],
+                result["pooled"]["denominator_source"],
+                cell(result["pooled"]["average_recorded_per_departure"]),
+                html.escape(result["query"]["data_vintage"])))
+    if result.get("all_nearby_departures_left"):
+        head += "<p class='warn'>All nearby departures have left; showing the earliest later bus for context.</p>"
+    later = result.get("later_comparison")
+    if later:
+        head += ("<p class='note'>Next later boarding option: {} at {}; load change {}, "
+                 "high-demand minutes change {}.</p>".format(
+                     html.escape(later["later_route"]), later["later_departure"],
+                     cell(later["load_change"]), cell(later["crowded_minutes_change"])))
+    table = ("<table><tr><th>route</th><th>direction</th><th>dep</th><th>arr</th><th>platforms</th>"
+             "<th>wait</th><th>ride</th><th>load</th><th>busiest stretch</th><th>high-demand min</th>"
+             "<th>confidence</th><th>evidence</th></tr>"
              + "".join(rows) + "</table>")
     return head + table
 
